@@ -452,6 +452,10 @@ def main() -> None:
                 label_embeddings[label][task_num] = embedding
                 label_losses[label][task_num] = loss
                 received += 1
+                print(
+                    f"[{received}/{total_jobs}] done label={label} task={task_num}",
+                    flush=True,
+                )
 
             if error is not None:
                 for proc in processes:
@@ -492,6 +496,10 @@ def main() -> None:
             label_embeddings: dict[str, list] = {}
             label_losses: dict[str, list] = {}
 
+            total_planned = sum(
+                args.num_tasks for label in labels if texts_by_label[label]
+            )
+            processed = 0
             for label in labels:
                 label_texts = texts_by_label[label]
                 if not label_texts:
@@ -517,6 +525,8 @@ def main() -> None:
                         "task_batch_size": args.batch_size,
                     }
                     if token_cache is not None:
+                        if len(token_cache) == 0:
+                            break
                         replace = len(token_cache) < args.batch_size
                         indices = rng.choice(len(token_cache), size=args.batch_size, replace=replace)
                         tokenized = token_cache.select(indices.tolist())
@@ -541,6 +551,11 @@ def main() -> None:
                         )
                     embeddings.append(embedding)
                     losses.append(loss)
+                    processed += 1
+                    print(
+                        f"[{processed}/{total_planned}] done label={label} task={task_num}",
+                        flush=True,
+                    )
 
                 label_embeddings[label] = embeddings
                 label_losses[label] = losses
