@@ -76,7 +76,7 @@ def _pca_2d(x: np.ndarray) -> np.ndarray:
     return u[:, :2] * s[:2]
 
 
-def _plot_pca(embeddings, title: str, out_path: Path) -> None:
+def _plot_pca(embeddings, title: str, out_path: Path, labels: Optional[list[str]] = None) -> None:
     import matplotlib.pyplot as plt
 
     if len(embeddings) < 2:
@@ -86,7 +86,20 @@ def _plot_pca(embeddings, title: str, out_path: Path) -> None:
     pts = _pca_2d(x)
 
     plt.figure(figsize=(6, 6))
-    plt.scatter(pts[:, 0], pts[:, 1], s=10, alpha=0.6)
+    if labels and len(labels) == len(embeddings):
+        unique_labels = list(dict.fromkeys(labels))
+        cmap = plt.get_cmap("tab20")
+        if len(unique_labels) > cmap.N:
+            cmap = plt.get_cmap("hsv")
+        for idx, label in enumerate(unique_labels):
+            color = cmap(idx % cmap.N)
+            mask = [lbl == label for lbl in labels]
+            xs = pts[mask, 0]
+            ys = pts[mask, 1]
+            plt.scatter(xs, ys, s=12, alpha=0.75, label=str(label), color=color)
+        plt.legend(loc="best", fontsize=8, frameon=True, markerscale=1.2)
+    else:
+        plt.scatter(pts[:, 0], pts[:, 1], s=10, alpha=0.6)
     plt.title(title)
     plt.xlabel("PC1")
     plt.ylabel("PC2")
@@ -320,6 +333,7 @@ def _save_outputs(
             all_embeddings,
             f"{stem} all labels Task2Vec PCA",
             output_dir / f"{combined_prefix}_task2vec_pca.png",
+            labels=all_labels,
         )
         if len(all_embeddings) > 1:
             distance_matrix = task_similarity.pdist(all_embeddings, distance="cosine")
