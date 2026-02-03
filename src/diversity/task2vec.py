@@ -52,6 +52,24 @@ def get_lm_loss(logits: torch.tensor, targets: torch.tensor, ignore_index=None) 
        
     return loss(logits, targets)
 
+
+def _resolve_loader_kwargs(loader_opts, batch_size_default: int) -> dict:
+    opts = loader_opts or {}
+    num_workers = int(opts.get("num_workers", 0))
+    kwargs = {
+        "batch_size": int(opts.get("batch_size", batch_size_default)),
+        "num_workers": num_workers,
+    }
+    if opts.get("pin_memory", False):
+        kwargs["pin_memory"] = True
+    if num_workers > 0:
+        prefetch_factor = opts.get("prefetch_factor", None)
+        if prefetch_factor is not None:
+            kwargs["prefetch_factor"] = int(prefetch_factor)
+        if opts.get("persistent_workers", False):
+            kwargs["persistent_workers"] = True
+    return kwargs
+
 class Embedding:
     """
     task_embedding = diagonal of the FIM for the filters of size [F_total, 1] total filters for a network.
@@ -184,7 +202,7 @@ class Task2Vec:
         device = next(self.model.parameters()).device
 
         # Get dataloader per iteration (approx ceil(len(ds)/batch_size)))
-        data_loader = DataLoader(dataset, batch_size=loader_opts.get('batch_size', batch_size), num_workers=loader_opts.get('num_workers', 0))
+        data_loader = DataLoader(dataset, **_resolve_loader_kwargs(loader_opts, batch_size))
         
         # Get params to optimize (we will only FT the head just like the original T2V did. Hypothesis is full body FT might lead to forgetting)
         optimizer_grouped_parameters = [
@@ -225,8 +243,12 @@ class Task2Vec:
         else:
             loader_opts = self.loader_opts
             
-        data_loader = DataLoader(dataset, shuffle=False, batch_size=loader_opts.get('batch_size', 8),
-                                 num_workers=loader_opts.get('num_workers', 0), drop_last=False)
+        data_loader = DataLoader(
+            dataset,
+            shuffle=False,
+            drop_last=False,
+            **_resolve_loader_kwargs(loader_opts, 8),
+        )
         device = get_device(self.model)
 
         # num_examples = int(classifier_opts.get("task_batch_size", 256) / loader_opts.get('batch_size', 8))
@@ -409,8 +431,12 @@ class Task2Vec:
         logging.info("Caching features...")
         if loader_opts is None:
             loader_opts = {}
-        data_loader = DataLoader(dataset, shuffle=False, batch_size=loader_opts.get('batch_size', 64),
-                                 num_workers=loader_opts.get('num_workers', 0), drop_last=False)
+        data_loader = DataLoader(
+            dataset,
+            shuffle=False,
+            drop_last=False,
+            **_resolve_loader_kwargs(loader_opts, 64),
+        )
 
         device = next(self.model.parameters()).device
 
